@@ -6,20 +6,18 @@ int main()
 {
 	if (!Taking.Connection()) exit(0);
 
-	std::cout << "Connected\n";
+	std::cout << "Connected to server\n";
 
 	Taking.OpenAudioDevice();
 
-	for (; true;)
+	while(true)
 	{
-		Taking.ToReceive();
+		if (!Taking.ToReceive()) break;
 
-		Taking.VideoPlaying();
-		Taking.SoundPlaying();
+		if(!Taking.VideoPlaying()) break;
+		if(!Taking.SoundPlaying()) break;
 
 		if (waitKey(1) == 27) // ќжидание нажати€ клавиши ESC дл€ выхода из цикла
 			break;
 	}
-
-	Taking.Clear();
 }

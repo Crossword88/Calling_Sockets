@@ -1,37 +1,55 @@
 #include "Send.h"
 
-int main()
+bool checkInternetConnection()
 {
 	if (InternetCheckConnectionW(L"http://www.microsoft.com", FLAG_ICC_FORCE_CONNECTION, 0) == FALSE)
 	{
-		std::cout << "No connect\n";
+		std::cout << "No internet connection\n";
 		return 0;
 	}
+	else
+	{
+		return 1;
+	}
+}
 
-	Send info;
-
-	if (!info.Connection()) return 0;
-
-	std::cout << "Connected\n";
-
-	VideoCapture capture(0); //Opening webcam with index 0 (first available webcam)
-	if (!capture.isOpened()) {
+bool openWebcam(VideoCapture webcam)
+{
+	if (!webcam.isOpened()) {
 		std::cout << "\n\n\n\nError open webcam" << std::endl;
 		return 0;
 	}
-
-	info.OpenAudioDevice();
-
-	for(;true;)
+	else
 	{
-		info.VideoRecording(capture);
-		info.SoundRecording();
+		return 1;
+	}
+}
 
-		info.ToSend();
+int main()
+{
+	if (!checkInternetConnection())	return -1;
+
+	Send sender;
+	if (!sender.socketConnection()) return -1;
+
+	VideoCapture webcam(0);	//Opening webcam with index 0 (first available webcam)
+	if (!openWebcam(webcam)) return -1;
+
+	sender.OpenAudioDevice();
+
+	system("cls");
+
+	std::cout << "client Connected\n";
+
+	while (true)
+	{
+		if (!sender.VideoRecording(webcam)) break;
+		
+		if(!sender.SoundRecording()) break;
+
+		if (!sender.ToSend()) break;
 	}
 
-	capture.release();
-	info.Clear();
-
+	webcam.release();
 	return 0;
 }

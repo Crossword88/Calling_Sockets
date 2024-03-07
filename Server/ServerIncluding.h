@@ -18,22 +18,22 @@ const int NUMPTS = sampleRateF * 2 * (1);	//last one - seconds
 
 struct data
 {
-	std::vector<uchar> buffer;
-	std::vector<short int> record;	//all sounds
+	std::vector<uchar> videoBuffer;
+	std::vector<short int> soundRecord;	//all sounds
 
 	std::vector<char> serialize() const {
-		std::vector<char> result(buffer.size() + NUMPTS);
-		std::memcpy(result.data(), buffer.data(), buffer.size());
-		std::memcpy(result.data() + buffer.size(), record.data(), NUMPTS);	//looks right
+		std::vector<char> result(videoBuffer.size() + NUMPTS);
+		std::memcpy(result.data(), videoBuffer.data(), videoBuffer.size());
+		std::memcpy(result.data() + videoBuffer.size(), soundRecord.data(), NUMPTS);	//looks right
 		return result;
 	}
 
 	static data deserialize(const std::vector<char>& bytes) {
 		data result;
-		result.buffer.resize(bytes.size() - NUMPTS);
-		std::memcpy(result.buffer.data(), bytes.data(), result.buffer.size());
-		result.record.resize(NUMPTS);
-		std::memcpy(result.record.data(), bytes.data() + result.buffer.size(), NUMPTS);
+		result.videoBuffer.resize(bytes.size() - NUMPTS);
+		std::memcpy(result.videoBuffer.data(), bytes.data(), result.videoBuffer.size());
+		result.soundRecord.resize(NUMPTS);
+		std::memcpy(result.soundRecord.data(), bytes.data() + result.videoBuffer.size(), NUMPTS);
 		return result;	//idk
 	}
 };

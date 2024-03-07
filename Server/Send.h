@@ -2,28 +2,29 @@
 
 #include "ServerIncluding.h"
 
+#define MONO 1
+#define STEREO 2
+
 class Send
 {
 	data Sending;
 	
-	SOCKET newConnection = 0;
+	SOCKET sockConnect = 0;
 
-	Mat frame;	//picture
-	int bufferSize = 0;
-	WAVEFORMATEX wf = { 0 };	//sound
-	HWAVEIN hwi = 0;
+	Mat videoPicture;
+	WAVEFORMATEX SoundFormat = { 0 };
+	HWAVEIN hAudioInput = { 0 };
 	WAVEHDR WaveInHdr = { 0 };
-	int bytes = 0;	//bytes sended
 
 public:
 	Send();
-	bool Connection();
-	void VideoRecording(VideoCapture capture);
-	void SoundRecording();
-	void ToSend();
+	~Send();
+	bool wsaLibraryStartUp();
+	bool socketConnection();
+	bool VideoRecording(VideoCapture webcam);
+	bool SoundRecording();
+	bool ToSend();
 	void ErrorEnd(int error, SOCKET& sock);
-	void Clear();
 	void OpenAudioDevice();
-
 };
 

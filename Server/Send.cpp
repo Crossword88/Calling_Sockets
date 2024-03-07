@@ -2,11 +2,17 @@
 
 Send::Send()
 {
-	std::cout << "YIP\n";
-	Sending.record.resize(NUMPTS);
+	Sending.soundRecord.resize(NUMPTS);
 }
 
-bool Send::Connection()
+Send::~Send()
+{
+	WSACleanup();
+	closesocket(sockConnect);
+	waveInClose(hAudioInput);
+}
+
+bool Send::wsaLibraryStartUp()
 {
 	WSAData wsaData;
 	WORD DllVersion = MAKEWORD(2, 2);
@@ -16,6 +22,13 @@ bool Send::Connection()
 		std::cout << "ERROR LIB\n";
 		return 0;
 	}
+
+	return 1;
+}
+
+bool Send::socketConnection()
+{
+	if (!wsaLibraryStartUp()) return 0;
 
 	SOCKET sListen = socket(AF_INET, SOCK_STREAM, NULL); //creating a listening socket
 	if (sListen == INVALID_SOCKET)
@@ -51,89 +64,102 @@ bool Send::Connection()
 		return 0;
 	}
 
-	newConnection = 0;
 	std::cout << "Waiting Connection...\n";
-	newConnection = accept(sListen, (SOCKADDR*)&clientInfo, &sizeofAddr);
+	sockConnect = accept(sListen, (SOCKADDR*)&clientInfo, &sizeofAddr);
 
-	if (newConnection == 0)
+	if (sockConnect == 0)
 	{
-		std::cout << "ERROR Connection\n";
+		std::cout << "ERROR Connection to Socket\n";
 		return false;
 	}
 	else
 	{
-		std::cout << "Connected\n";
+		std::cout << "Connected to Socket\n";
 		return true;
 	}
 }
 
-void Send::VideoRecording(VideoCapture capture)
+bool Send::VideoRecording(VideoCapture webcam)
 {
-	capture.read(frame); // Reading of the picture from webcam
+	webcam.read(videoPicture); // Reading of the picture from webcam
 
-	if (frame.empty()) {
+	if (videoPicture.empty()) {
 		std::cout << "\n\n\n\n\nError read pictue" << std::endl;
-		return;
+		return 0;
 	}
 
+	return 1;
 }
 
-void Send::SoundRecording()
+bool Send::SoundRecording()
 {
-	waveInPrepareHeader(hwi, &WaveInHdr, sizeof(WAVEHDR));
-	waveInAddBuffer(hwi, &WaveInHdr, sizeof(WAVEHDR));
-	waveInStart(hwi);
-	waveInUnprepareHeader(hwi, &WaveInHdr, sizeof(WAVEHDR));
+	waveInPrepareHeader(hAudioInput, &WaveInHdr, sizeof(WAVEHDR));
+	waveInAddBuffer(hAudioInput, &WaveInHdr, sizeof(WAVEHDR));
+	waveInStart(hAudioInput);
+	waveInUnprepareHeader(hAudioInput, &WaveInHdr, sizeof(WAVEHDR));
+
+	if (WaveInHdr.lpData == 0)
+	{
+		std::cout << "Error to get a sound\n";
+		return 0;
+	}
+	else
+		return 1;
 }
 
-void Send::ToSend()
+bool Send::ToSend()
 {
-	cv::imencode(".jpg", frame, Sending.buffer);
+	int bufferSize = 0;
+	int sendBytes = 0;
+
+	cv::imencode(".jpg", videoPicture, Sending.videoBuffer);
 
 	std::vector<char> serializeBuffer = Sending.serialize();
 	bufferSize = serializeBuffer.size();
 
-	std::cout << bufferSize << std::endl;
+	sendBytes = send(sockConnect, reinterpret_cast<const char*>(&bufferSize), sizeof(int), 0);	//send size
 
-	send(newConnection, reinterpret_cast<const char*>(&bufferSize), sizeof(int), 0);	//send size
+	if (sendBytes != sizeof(int))
+	{
+		std::cout << "Error to send buffer size\n";
+		return 0;
+	}
 
-	std::cout << "HERE IS ALL: \n" << "\nbufferSize: " << Sending.buffer.size() << "\nrecordSize: " << Sending.record.size() << "\nSerializeSize: " << serializeBuffer.size() << "\n";
+	sendBytes = send(sockConnect, serializeBuffer.data(), bufferSize, 0);		//send buffer
 
-	bytes = send(newConnection, serializeBuffer.data(), bufferSize, 0);		//send buffer
-
-	std::cout << "All bytes sended: " << bytes << "\n";
-
-	if (bytes != bufferSize) std::cout << "Error to send buffer\n";
+	if (sendBytes != bufferSize)
+	{
+		std::cout << "Error to send buffer\n";
+		return 0;
+	}
+	else
+	{
+		return 1;
+	}
 }
 
 void Send::ErrorEnd(int error, SOCKET& sock)
 {
 	std::cout << "Error socket: " << error << std::endl;
 	closesocket(sock);
+	closesocket(sockConnect);
 	WSACleanup();
 	exit(0);
 }
 
-void Send::Clear()
-{
-	WSACleanup();
-	closesocket(newConnection);
-	waveInClose(hwi);
-}
-
 void Send::OpenAudioDevice()
 {
-	wf.wFormatTag = WAVE_FORMAT_PCM;     // simple, uncompressed format
-	wf.nChannels = 2;                    //  1=mono, 2=stereo
-	wf.wBitsPerSample = 16;              //  16 for high quality, 8 for telephone-grade
-	wf.nSamplesPerSec = sampleRateF;
-	wf.nAvgBytesPerSec = sampleRateF * wf.nChannels * wf.wBitsPerSample / 8;
-	wf.nBlockAlign = wf.nChannels * wf.wBitsPerSample / 8;
-	wf.cbSize = 0;
+	SoundFormat.wFormatTag = WAVE_FORMAT_PCM;     // simple, uncompressed format
+	SoundFormat.nChannels = STEREO;               //  1=mono, 2=stereo
+	SoundFormat.wBitsPerSample = 16;              //  16 for high quality, 8 for telephone-grade
+	SoundFormat.nSamplesPerSec = sampleRateF;
+	SoundFormat.nAvgBytesPerSec = sampleRateF * SoundFormat.nChannels * SoundFormat.wBitsPerSample / 8;
+	SoundFormat.nBlockAlign = SoundFormat.nChannels * SoundFormat.wBitsPerSample / 8;
+	SoundFormat.cbSize = 0;
 
-	waveInOpen(&hwi, WAVE_MAPPER, &wf, 0, 0, WAVE_FORMAT_DIRECT);
+	waveInOpen(&hAudioInput, WAVE_MAPPER, &SoundFormat, 0, 0, WAVE_FORMAT_DIRECT);
 
-	WaveInHdr.lpData = (LPSTR)Sending.record.data();
+	WaveInHdr.lpData = (LPSTR)Sending.soundRecord.data();
 	WaveInHdr.dwBufferLength = NUMPTS * 2;
 	WaveInHdr.dwBytesRecorded = 0;
 	WaveInHdr.dwUser = 0L;
